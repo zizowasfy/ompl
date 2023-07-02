@@ -1,0 +1,195 @@
+#define BOOST_TEST_MODULE "FactoredMotionPlanning"
+#include <boost/test/unit_test.hpp>
+
+#include <ompl/base/StateSpace.h>
+#include <ompl/base/spaces/RealVectorStateSpace.h>
+#include <ompl/base/spaces/SE2StateSpace.h>
+#include <ompl/base/terminationconditions/IterationTerminationCondition.h>
+
+#include <ompl/multilevel/planners/factor/FactorRRT.h>
+#include <ompl/multilevel/datastructures/FactoredSpaceInformation.h>
+#include <ompl/multilevel/datastructures/projections/RN_RM.h>
+#include <ompl/util/Console.h>
+
+#include "../demos/PlanarManipulator/PolyWorld.h"
+#include "../demos/PlanarManipulator/PolyWorld.cpp"
+#include "../demos/PlanarManipulator/PlanarManipulatorPolyWorld.h"
+#include "../demos/PlanarManipulator/PlanarManipulator.h"
+#include "../demos/PlanarManipulator/PlanarManipulator.cpp"
+#include "../demos/PlanarManipulator/PlanarManipulatorStateSpace.h"
+#include "../demos/PlanarManipulator/PlanarManipulatorStateValidityChecker.h"
+#include "../demos/PlanarManipulator/PlanarManipulatorIKGoal.h"
+#include "../demos/multilevel/MultiLevelPlanarManipulatorCommon.h"
+
+using namespace ompl::base;
+using namespace ompl::multilevel;
+
+class ProjectionJointSpaceToSE2 : public ompl::multilevel::Projection
+{
+public:
+    ProjectionJointSpaceToSE2(StateSpacePtr bundle, StateSpacePtr base, PlanarManipulator *manip)
+      : Projection(bundle, base), manip_(manip)
+    {
+        type_ = ompl::multilevel::PROJECTION_TASK_SPACE;
+    }
+
+    void project(const State *xBundle, State *xBase) const
+    {
+        std::vector<double> reals;
+        getBundle()->copyToReals(reals, xBundle);
+
+        Eigen::Affine2d eeFrame;
+        manip_->FK(reals, eeFrame);
+
+        double x = eeFrame.translation()(0);
+        double y = eeFrame.translation()(1);
+        double yaw = acos(eeFrame.matrix()(0, 0));
+
+        xBase->as<SE2StateSpace::StateType>()->setXY(x, y);
+        xBase->as<SE2StateSpace::StateType>()->setYaw(yaw);
+
+        getBundle()->printState(xBundle);
+        getBase()->printState(xBase);
+    }
+
+    void lift(const State *xBase, State *xBundle) const
+    {
+        std::vector<double> reals;
+        getBase()->copyToReals(reals, xBase);
+
+        // to Eigen
+        Eigen::Affine2d eeFrame = Eigen::Affine2d::Identity();
+        eeFrame.translation()(0) = reals.at(0);
+        eeFrame.translation()(1) = reals.at(1);
+        eeFrame.rotate(reals.at(2));
+
+        std::vector<double> solution;
+        manip_->FABRIK(solution, eeFrame);
+
+        double *angles = xBundle->as<PlanarManipulatorStateSpace::StateType>()->values;
+        for (uint k = 0; k < solution.size(); k++)
+        {
+            angles[k] = solution.at(k);
+        }
+    }
+
+private:
+    PlanarManipulator *manip_;
+};
+
+
+BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_MultiLevelConnection)
+{
+    Eigen::Affine2d baseFrame;
+    Eigen::Affine2d goalFrame;
+    const auto numLinks = 8;
+
+    PlanarManipulator manipulator = PlanarManipulator(numLinks, 1.0 / numLinks);
+    PolyWorld world = createCorridorProblem(numLinks, baseFrame, goalFrame);
+
+    // #########################################################################
+    // ## Create robot joint configuration space [TOTAL SPACE]
+    // #########################################################################
+    ompl::base::StateSpacePtr joint_space(new PlanarManipulatorStateSpace(numLinks));
+    ompl::base::RealVectorBounds bounds(numLinks);
+    bounds.setLow(-M_PI);
+    bounds.setHigh(M_PI);
+    joint_space->as<PlanarManipulatorStateSpace>()->setBounds(bounds);
+    manipulator.setBounds(bounds.low, bounds.high);
+
+    auto joint_space_si = std::make_shared<FactoredSpaceInformation>(joint_space);
+    joint_space_si->setStateValidityChecker(std::make_shared<PlanarManipulatorCollisionChecker>(joint_space_si, manipulator, &world));
+    joint_space_si->setStateValidityCheckingResolution(0.001);
+
+    // #########################################################################
+    // ## Create task space [SE2 BASE SPACE]
+    // #########################################################################
+    ompl::base::StateSpacePtr task_space(new SE2StateSpace());
+    ompl::base::RealVectorBounds boundsWorkspace(2);
+    boundsWorkspace.setLow(-2);
+    boundsWorkspace.setHigh(+2);
+    task_space->as<SE2StateSpace>()->setBounds(boundsWorkspace);
+
+    auto task_space_si = std::make_shared<FactoredSpaceInformation>(task_space);
+    task_space_si->setStateValidityChecker(std::make_shared<SE2CollisionChecker>(task_space_si, &world));
+    task_space_si->setStateValidityCheckingResolution(0.001);
+
+    // #########################################################################
+    // ## Create mapping total to base space [PROJECTION]
+    // #########################################################################
+    ompl::multilevel::ProjectionPtr proj = std::make_shared<ProjectionJointSpaceToSE2>(joint_space, task_space, &manipulator);
+
+    // #########################################################################
+    // ## Put it all together
+    // #########################################################################
+    joint_space_si->addChild(task_space_si, proj);
+
+    auto planner = std::make_shared<ompl::multilevel::FactorRRT>(joint_space_si);
+
+    // #########################################################################
+    // ## Set start state
+    // #########################################################################
+    ompl::base::State *start = joint_space_si->allocState();
+    double *start_angles = start->as<PlanarManipulatorStateSpace::StateType>()->values;
+
+    for (int i = 0; i < numLinks; ++i)
+    {
+        start_angles[i] = 1e-1 * (pow(-1, i)) + i * 1e-3;
+    }
+
+    // #########################################################################
+    // ## Set goal state
+    // #########################################################################
+    //  0.346324 0.0828153 2.96842 -2.17559 -0.718962 0.16532 -0.228314 0.172762 0.0471638 0.341137
+    ompl::base::State *goal = joint_space_si->allocState();
+
+    std::vector<double> goalJoints;
+    manipulator.IK(goalJoints, goalFrame);
+
+    double *goal_angles = goal->as<PlanarManipulatorStateSpace::StateType>()->values;
+    goal_angles[0] = 0.346324;
+    goal_angles[1] = 0.0828153;
+    goal_angles[2] = 2.96842;
+    goal_angles[3] = -2.17559;
+    goal_angles[4] = -0.718962;
+    goal_angles[5] = 0.16532;
+    goal_angles[6] = -0.228314;
+    goal_angles[7] = 0.172762;
+
+    ProblemDefinitionPtr pdef = std::make_shared<ProblemDefinition>(joint_space_si);
+    pdef->addStartState(start);
+    pdef->setGoalState(goal, 1e-3);
+
+    joint_space_si->freeState(start);
+    joint_space_si->freeState(goal);
+
+    // #########################################################################
+    // ## Invoke planner
+    // #########################################################################
+    planner->setProblemDefinition(pdef);
+    planner->setup();
+
+    ompl::base::IterationTerminationCondition itc(200);
+    auto ptc = ompl::base::plannerOrTerminationCondition(itc, exactSolnPlannerTerminationCondition(pdef));
+
+    PlannerStatus solved = planner->solve(ptc);
+
+    BOOST_CHECK_EQUAL(solved, ompl::base::PlannerStatus::StatusType::EXACT_SOLUTION);
+    BOOST_CHECK(pdef->hasSolution());
+
+    const auto& path = pdef->getSolutionPath();
+
+    BOOST_CHECK(path->check());
+    BOOST_CHECK_GT(path->length(), 0.0f);
+
+    if (solved)
+    {
+        PathPtr path = pdef->getSolutionPath();
+        PathGeometric &pgeo = *static_cast<PathGeometric *>(path.get());
+        OMPL_INFORM("Solution path has %d states", pgeo.getStateCount());
+        pgeo.print(std::cout);
+
+        pgeo.interpolate(250);
+        WriteVisualization(manipulator, &world, pgeo);
+    }
+}

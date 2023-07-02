@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.8)
 project(ompl VERSION 1.6.0 LANGUAGES CXX)
 set(OMPL_ABI_VERSION 17)
 

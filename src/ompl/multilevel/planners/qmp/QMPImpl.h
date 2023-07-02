@@ -42,13 +42,16 @@
 
 namespace ompl
 {
+    namespace geometric
+    {
+        OMPL_CLASS_FORWARD(PathGeometric);
+    }
     namespace base
     {
         OMPL_CLASS_FORWARD(OptimizationObjective);
     }
     namespace multilevel
     {
-        OMPL_CLASS_FORWARD(PathGeometric);
         /** \brief Implementation of the Quotient space roadMap Planner */
         class QMPImpl : public ompl::multilevel::BundleSpaceGraph
         {

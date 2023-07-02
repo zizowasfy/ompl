@@ -60,8 +60,8 @@ def planWithSimpleSetup():
 
     # set lower and upper bounds
     bounds = ob.RealVectorBounds(2)
-    bounds.setLow(-1)
-    bounds.setHigh(1)
+    bounds.setLow(-2)
+    bounds.setHigh(2)
     space.setBounds(bounds)
 
     # create a simple setup object
@@ -98,8 +98,8 @@ def planTheHardWay():
     space = ob.SE2StateSpace()
     # set lower and upper bounds
     bounds = ob.RealVectorBounds(2)
-    bounds.setLow(-1)
-    bounds.setHigh(1)
+    bounds.setLow(-2)
+    bounds.setHigh(2)
     space.setBounds(bounds)
     # construct an instance of space information from this state space
     si = ob.SpaceInformation(space)

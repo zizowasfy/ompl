@@ -39,6 +39,10 @@ if (OMPL_BUILD_TESTS)
     add_ompl_test(test_ptc base/ptc.cpp)
     add_ompl_test(test_planner_data base/planner_data.cpp)
 
+    add_ompl_test(test_multilevel_factored multilevel/factored.cpp)
+    add_ompl_test(test_multilevel_projections multilevel/projections.cpp)
+    add_ompl_test(test_multilevel_projections_custom multilevel/projections_custom.cpp)
+
     # Test kinematic motion planners in 2D environments
     add_ompl_test(test_2denvs_geometric geometric/2d/2denvs.cpp)
     add_ompl_test(test_2dmap_geometric_simple geometric/2d/2dmap_simple.cpp)

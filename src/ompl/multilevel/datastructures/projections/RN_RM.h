@@ -50,6 +50,7 @@ namespace ompl
 
         public:
             Projection_RN_RM(base::StateSpacePtr BundleSpace, base::StateSpacePtr BaseSpace);
+            Projection_RN_RM(base::StateSpacePtr BundleSpace, base::StateSpacePtr BaseSpace, std::vector<size_t> projected_dimensions);
 
             ~Projection_RN_RM() override = default;
 
@@ -60,8 +61,15 @@ namespace ompl
             virtual void lift(const ompl::base::State *xBase, const ompl::base::State *xFiber,
                               ompl::base::State *xBundle) const override;
 
+            bool isProjectedDimension(size_t input) const;
         protected:
             ompl::base::StateSpacePtr computeFiberSpace() override;
+
+            std::vector<size_t> projected_dimensions_;
+            std::vector<size_t> non_projected_dimensions_;
+
+            std::unordered_map<size_t, size_t> map_non_projected_dimension_to_fiber_;
+            std::unordered_map<size_t, size_t> map_projected_dimension_to_base_;
         };
     }
 }

@@ -39,12 +39,49 @@
 #include <ompl/multilevel/datastructures/projections/RN_RM.h>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 
+#include <ranges>
+#include <numeric>
+#include <boost/iterator/counting_iterator.hpp>
+
 using namespace ompl::multilevel;
 
 Projection_RN_RM::Projection_RN_RM(ompl::base::StateSpacePtr BundleSpace, ompl::base::StateSpacePtr BaseSpace)
-  : BaseT(BundleSpace, BaseSpace)
+  : Projection_RN_RM(BundleSpace, BaseSpace, 
+    std::vector<size_t>(boost::counting_iterator<size_t>(0), boost::counting_iterator<size_t>(BaseSpace->getDimension())))
 {
+}
+
+Projection_RN_RM::Projection_RN_RM(ompl::base::StateSpacePtr BundleSpace, ompl::base::StateSpacePtr BaseSpace, std::vector<size_t> projected_dimensions)
+  : BaseT(BundleSpace, BaseSpace), projected_dimensions_(projected_dimensions)
+{
+    size_t ctr_base = 0;
+    size_t ctr_fiber = 0;
+    for (unsigned int k = 0; k < getDimension(); k++) 
+    {
+      if(isProjectedDimension(k)) {
+        map_projected_dimension_to_base_.insert({k, ctr_base});
+        ctr_base++;
+      } else {
+        non_projected_dimensions_.push_back(k);
+        map_non_projected_dimension_to_fiber_.insert({k, ctr_fiber});
+        ctr_fiber++;
+      }
+    }
+    auto total_size = map_projected_dimension_to_base_.size() + map_non_projected_dimension_to_fiber_.size();
+    if(total_size != getDimension()) {
+      OMPL_ERROR("Dimension error: Base has %d, fiber has %d, but dimension is %d.", map_projected_dimension_to_base_.size(),
+          map_non_projected_dimension_to_fiber_.size(), getDimension());
+    }
     setType(PROJECTION_RN_RM);
+}
+
+bool Projection_RN_RM::isProjectedDimension(size_t input) const {
+    for(const auto& dim : projected_dimensions_) {
+      if(dim == input) {
+        return true;
+      }
+    }
+    return false;
 }
 
 void Projection_RN_RM::projectFiber(const ompl::base::State *xBundle, ompl::base::State *xFiber) const
@@ -53,9 +90,10 @@ void Projection_RN_RM::projectFiber(const ompl::base::State *xBundle, ompl::base
 
     auto *xFiber_RM = xFiber->as<base::RealVectorStateSpace::StateType>();
 
-    for (unsigned int k = getBaseDimension(); k < getDimension(); k++)
+    for(const auto& dim : non_projected_dimensions_) 
     {
-        xFiber_RM->values[k - getBaseDimension()] = xBundle_RN->values[k];
+      const auto& fdim = map_non_projected_dimension_to_fiber_.at(dim);
+      xFiber_RM->values[fdim] = xBundle_RN->values[dim];
     }
 }
 
@@ -64,9 +102,10 @@ void Projection_RN_RM::project(const ompl::base::State *xBundle, ompl::base::Sta
     const auto *xBundle_RN = xBundle->as<base::RealVectorStateSpace::StateType>();
     auto *xBase_RM = xBase->as<base::RealVectorStateSpace::StateType>();
 
-    for (unsigned int k = 0; k < getBaseDimension(); k++)
+    for(const auto& dim : projected_dimensions_) 
     {
-        xBase_RM->values[k] = xBundle_RN->values[k];
+      const auto& bdim = map_projected_dimension_to_base_.at(dim);
+      xBase_RM->values[bdim] = xBundle_RN->values[dim];
     }
 }
 
@@ -77,34 +116,35 @@ void Projection_RN_RM::lift(const ompl::base::State *xBase, const ompl::base::St
     const auto *xBase_RM = xBase->as<base::RealVectorStateSpace::StateType>();
     const auto *xFiber_RJ = xFiber->as<base::RealVectorStateSpace::StateType>();
 
-    for (unsigned int k = 0; k < getBaseDimension(); k++)
+    for(const auto& dim : projected_dimensions_)
     {
-        xBundle_RN->values[k] = xBase_RM->values[k];
+        const auto& bdim = map_projected_dimension_to_base_.at(dim);
+        xBundle_RN->values[dim] = xBase_RM->values[bdim];
     }
-    for (unsigned int k = getBaseDimension(); k < getDimension(); k++)
+    for(const auto& dim : non_projected_dimensions_)
     {
-        xBundle_RN->values[k] = xFiber_RJ->values[k - getBaseDimension()];
+        const auto& fdim = map_non_projected_dimension_to_fiber_.at(dim);
+        xBundle_RN->values[dim] = xFiber_RJ->values[fdim];//k - getBaseDimension()];
     }
 }
 
 ompl::base::StateSpacePtr Projection_RN_RM::computeFiberSpace()
 {
-    unsigned int N1 = getDimension();
-    unsigned int N0 = getBaseDimension();
-    unsigned int NX = N1 - N0;
-    base::StateSpacePtr FiberSpace = std::make_shared<base::RealVectorStateSpace>(NX);
+    unsigned int N = non_projected_dimensions_.size();
+    base::StateSpacePtr FiberSpace = std::make_shared<base::RealVectorStateSpace>(N);
     base::RealVectorBounds Bundle_bounds =
         std::static_pointer_cast<base::RealVectorStateSpace>(getBundle())->getBounds();
 
     std::vector<double> low;
-    low.resize(NX);
+    low.resize(N);
     std::vector<double> high;
-    high.resize(NX);
-    base::RealVectorBounds Fiber_bounds(NX);
-    for (unsigned int k = 0; k < NX; k++)
+    high.resize(N);
+    base::RealVectorBounds Fiber_bounds(N);
+    for(const auto& dim : non_projected_dimensions_)
     {
-        Fiber_bounds.setLow(k, Bundle_bounds.low.at(k + N0));
-        Fiber_bounds.setHigh(k, Bundle_bounds.high.at(k + N0));
+        const auto& fdim = map_non_projected_dimension_to_fiber_.at(dim);
+        Fiber_bounds.setLow(fdim, Bundle_bounds.low.at(dim));
+        Fiber_bounds.setHigh(fdim, Bundle_bounds.high.at(dim));
     }
     std::static_pointer_cast<base::RealVectorStateSpace>(FiberSpace)->setBounds(Fiber_bounds);
     return FiberSpace;

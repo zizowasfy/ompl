@@ -68,6 +68,10 @@ FindSection::FindSection(PathRestriction *restriction) : restriction_(restrictio
     if (graph->getCoDimension() > 0)
     {
         base::StateSpacePtr fiber = projection->getFiberSpace();
+        if(fiber == nullptr) {
+          OMPL_ERROR("Fiber space is nullptr.");
+        }
+  
         xFiberStart_ = fiber->allocState();
         xFiberGoal_ = fiber->allocState();
         xFiberTmp_ = fiber->allocState();

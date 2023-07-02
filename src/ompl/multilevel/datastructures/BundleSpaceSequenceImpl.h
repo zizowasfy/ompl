@@ -43,6 +43,7 @@
 #include <ompl/util/Time.h>
 #include <ompl/multilevel/datastructures/BundleSpaceGraph.h>
 #include <ompl/multilevel/datastructures/Projection.h>
+#include <ompl/multilevel/datastructures/projections/FiberedProjection.h>
 
 template <class T>
 ompl::multilevel::BundleSpaceSequence<T>::BundleSpaceSequence(ompl::base::SpaceInformationPtr si, std::string type)
@@ -73,6 +74,13 @@ ompl::multilevel::BundleSpaceSequence<T>::BundleSpaceSequence(std::vector<ompl::
     bundleSpaces_.front()->makeProjection();
     for (unsigned int k = 1; k < bundleSpaces_.size(); k++)
     {
+        auto& projection = projVec.at(k - 1);
+        auto fibered_projection = std::dynamic_pointer_cast<FiberedProjection>(projection);
+        if (fibered_projection != nullptr)
+        {
+            fibered_projection->makeFiberSpace();
+        }
+
         BundleSpace *bk = bundleSpaces_.at(k);
         bk->setProjection(projVec.at(k - 1));
         // need to precompute the location helper functions to utilize
