@@ -34,7 +34,7 @@
 
 /* Author: Ioan Sucan */
 
-#include "ompl/geometric/planners/rrt/RRT.h"
+#include "ompl/geometric/planners/rrt/GMRRRT.h"
 #include <limits>
 #include "ompl/base/goals/GoalSampleableRegion.h"
 #include "ompl/tools/config/SelfConfig.h"
@@ -42,36 +42,37 @@
 #include <ompl/base/spaces/SE3StateSpace.h>
 
 
-ompl::geometric::RRT::RRT(const base::SpaceInformationPtr &si, bool addIntermediateStates)
-  : base::Planner(si, addIntermediateStates ? "RRTintermediate" : "RRT")
+ompl::geometric::GMRRRT::GMRRRT(const base::SpaceInformationPtr &si, bool addIntermediateStates)
+  : base::Planner(si, addIntermediateStates ? "GMRRRTintermediate" : "GMRRRT")
 {
     specs_.approximateSolutions = true;
     specs_.directed = true;
 
-    Planner::declareParam<double>("range", this, &RRT::setRange, &RRT::getRange, "0.:1.:10000.");
-    Planner::declareParam<double>("goal_bias", this, &RRT::setGoalBias, &RRT::getGoalBias, "0.:.05:1.");
-    Planner::declareParam<bool>("intermediate_states", this, &RRT::setIntermediateStates, &RRT::getIntermediateStates,
+    Planner::declareParam<double>("range", this, &GMRRRT::setRange, &GMRRRT::getRange, "0.:1.:10000.");
+    Planner::declareParam<double>("goal_bias", this, &GMRRRT::setGoalBias, &GMRRRT::getGoalBias, "0.:.05:1.");
+    Planner::declareParam<bool>("intermediate_states", this, &GMRRRT::setIntermediateStates, &GMRRRT::getIntermediateStates,
                                 "0,1");
 
     addIntermediateStates_ = addIntermediateStates;
 }
 
-ompl::geometric::RRT::~RRT()
+ompl::geometric::GMRRRT::~GMRRRT()
 {
     freeMemory();
 }
 
-void ompl::geometric::RRT::clear()
+void ompl::geometric::GMRRRT::clear()
 {
     Planner::clear();
     sampler_.reset();
+    // sampler_rrt.reset();
     freeMemory();
     if (nn_)
         nn_->clear();
     lastGoalMotion_ = nullptr;
 }
 
-void ompl::geometric::RRT::setup()
+void ompl::geometric::GMRRRT::setup()
 {
     Planner::setup();
     tools::SelfConfig sc(si_, getName());
@@ -82,7 +83,7 @@ void ompl::geometric::RRT::setup()
     nn_->setDistanceFunction([this](const Motion *a, const Motion *b) { return distanceFunction(a, b); });
 }
 
-void ompl::geometric::RRT::freeMemory()
+void ompl::geometric::GMRRRT::freeMemory()
 {
     if (nn_)
     {
@@ -97,8 +98,15 @@ void ompl::geometric::RRT::freeMemory()
     }
 }
 
+// ompl::base::ValidStateSamplerPtr ompl::geometric::RRT::allocGaussianValidStateSampler(const ompl::base::SpaceInformation *si)
+// {
+//     // si_->stateSpace_->setStateSamplerAllocator(
+//     //     [this](ompl::base::StateSpace* ss){ return std::make_shared<ompl::base::GaussianValidStateSampler>(ss); });
+//     // sampler_ = si_->stateSpace_->allocStateSampler();
+//     return std::make_shared<ompl::base::GaussianValidStateSampler>(si);
+// }
 
-ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTerminationCondition &ptc)
+ompl::base::PlannerStatus ompl::geometric::GMRRRT::solve(const base::PlannerTerminationCondition &ptc)
 {
     checkValidity();
     base::Goal *goal = pdef_->getGoal().get();
@@ -118,9 +126,22 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
         OMPL_ERROR("%s: There are no valid initial states!", getName().c_str());
         return base::PlannerStatus::INVALID_START;
     }
+
+    // std::cout << "************************* I am RRT ************************* " << std::endl;
+    std::cout << "State Dimension: " << si_->getStateDimension() << std::endl;
+    std::cout << "StateSpace Name: " << si_->getStateSpace()->getName() << std::endl;    
+    std::cout << "StateSpace Type: " << si_->getStateSpace()->getType() << std::endl;
+    //
+    // si_->setValidStateSamplerAllocator(
+    //     [this](const ompl::base::SpaceInformation* si){ return allocGaussianValidStateSampler(si); });
+    // //\
     
-    if (!sampler_)
+    // if (!sampler_rrt)
+    if (!sampler_){
+        // std::cout << "NNOO SAMPPLER IS CHOOSEN" << std::endl;
         sampler_ = si_->allocStateSampler();
+        // sampler_rrt = si_->allocValidStateSampler();
+    }
         
 
     OMPL_INFORM("%s: Starting planning with %u states already in datastructure", getName().c_str(), nn_->size());
@@ -134,14 +155,18 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
 
     while (!ptc)
     {
+        bool samplegoal_flag = false;
         /* sample random state (with goal biasing) */
         if ((goal_s != nullptr) && rng_.uniform01() < goalBias_ && goal_s->canSample()){
             goal_s->sampleGoal(rstate);
-            std::cout << "####### RRT: SAMPLE GOAL " << std::endl;
+            std::cout << "####### SAMPLE GOAL " << std::endl;
+            samplegoal_flag = true;
             }
         else{
-            std::cout << "####### RRT: SAMPLE Uniform" << std::endl;
+            std::cout << "####### SAMPLE Gaussian" << std::endl;
             sampler_->sampleUniform(rstate);
+            // sampler_->sampleGaussian(rstate, xstate, 0.1);
+            // sampler_rrt->sampleNear(rstate, rstate, 0.1); // only the 1st arg is necessary
             }
 
         /* find closest state in the tree */
@@ -149,13 +174,31 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
         base::State *dstate = rstate;
 
         /* find state to add */
-        double d = si_->distance(nmotion->state, rstate);
-        if (d > maxDistance_)
-        {
-            si_->getStateSpace()->interpolate(nmotion->state, rstate, maxDistance_ / d, xstate);
-            dstate = xstate;
-        }
+        double D = si_->getStateSpace()->distance(nmotion->state, rstate);
+        std::cout << "*********** StateSpace Distance = " << D << " *************" << std::endl;
+        double D2 = si_->distance(nmotion->state, rstate);
+        std::cout << "*********** SpaceInfo Distance = " << D2 << " *************" << std::endl;        
+        // std::cout << "*********** MAXDistaaaance = " << maxDistance_ << " *************" << std::endl;
+        // if (d > maxDistance_)
+        // {
+        //     si_->getStateSpace()->interpolate(nmotion->state, rstate, maxDistance_ / d, xstate);
+        //     dstate = xstate;
+        //     std::cout << "############################"<< std::endl
+        //               << "##### OUT OF DISTANCE #####" << std::endl
+        //               << "############################"<< std::endl;
+        // }
 
+        /* Check if goal is far away from GMR samples and terminate if so*/
+        double d = sqrt(pow(nmotion->state->as<ompl::base::RealVectorStateSpace::StateType>()->values[0] - rstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[0],2)
+                      + pow(nmotion->state->as<ompl::base::RealVectorStateSpace::StateType>()->values[1] - rstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[1],2)
+                      + pow(nmotion->state->as<ompl::base::RealVectorStateSpace::StateType>()->values[2] - rstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[2],2));
+        std::cout << "*********** Euclidean Distaaaance = " << d << " *************" << std::endl;
+        if (D > 0.2 && samplegoal_flag)
+        {
+            std::cout << "Goal is Far away!" << std::endl;
+            break;
+        }
+        
         if (si_->checkMotion(nmotion->state, dstate))
         {
             if (addIntermediateStates_)
@@ -177,7 +220,7 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
                 }
             }
             else
-            {
+            {          
                 auto *motion = new Motion(si_);
                 si_->copyState(motion->state, dstate);
                 motion->parent = nmotion;
@@ -240,7 +283,7 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
     return {solved, approximate};
 }
 
-void ompl::geometric::RRT::getPlannerData(base::PlannerData &data) const
+void ompl::geometric::GMRRRT::getPlannerData(base::PlannerData &data) const
 {
     Planner::getPlannerData(data);
 

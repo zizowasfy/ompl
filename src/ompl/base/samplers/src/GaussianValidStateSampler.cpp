@@ -53,10 +53,12 @@ ompl::base::GaussianValidStateSampler::GaussianValidStateSampler(const SpaceInfo
                                  {
                                      return getStdDev();
                                  });
+    std::cout << std::endl << "From GaussianValidStateSampler: getStdDev(): " << getStdDev() << std::endl;
 }
 
 bool ompl::base::GaussianValidStateSampler::sample(State *state)
 {
+    std::cout << "GAUSSIANVALIDSTATESAMPLE: sample" << std::endl;
     bool result = false;
     unsigned int attempts = 0;
     State *temp = si_->allocState();
@@ -80,6 +82,7 @@ bool ompl::base::GaussianValidStateSampler::sample(State *state)
 
 bool ompl::base::GaussianValidStateSampler::sampleNear(State *state, const State *near, const double distance)
 {
+    std::cout << "GAUSSIANVALIDSTATESAMPLE: sampleNear" << std::endl;
     bool result = false;
     unsigned int attempts = 0;
     State *temp = si_->allocState();

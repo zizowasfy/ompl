@@ -429,12 +429,17 @@ namespace ompl
             /** \brief Return true if setup was called */
             bool isSetup() const;
 
+            // Zizo
+            /** \brief The state space planning is to be performed in */
+            StateSpacePtr stateSpace_;
+            //\ Zizo
+
         protected:
             /** \brief Set default motion validator for the state space */
             void setDefaultMotionValidator();
 
-            /** \brief The state space planning is to be performed in */
-            StateSpacePtr stateSpace_;
+            // /** \brief The state space planning is to be performed in */
+            // StateSpacePtr stateSpace_;
 
             /** \brief The instance of the state validity checker used for determining the validity of states in the
              * planning process */
