@@ -1,9 +1,9 @@
 #include "ompl/multilevel/planners/factor/FactorRRT.h"
 
 #include <ompl/base/StateSpace.h>
+#include <ompl/base/goals/GoalState.h>
 #include "ompl/multilevel/datastructures/FactoredSpaceInformation.h"
-#include <ompl/geometric/planners/rrt/RRTConnect.h>
-#include <ompl/multilevel/planners/qrrt/QRRT.h>
+#include "ompl/multilevel/datastructures/Projection.h"
 #include <ompl/multilevel/planners/factor/FactoredPlanner.h>
 #include <ompl/base/terminationconditions/IterationTerminationCondition.h>
 
@@ -14,6 +14,9 @@ FactorRRT::FactorRRT(const FactoredSpaceInformationPtr &si) :
 {
   specs_.approximateSolutions = false;
   specs_.directed = true;
+  specs_.optimizingPaths = true;
+  addPlannerProgressProperty("iterations INTEGER", [this] { return getIterationsProperty(); });
+  addPlannerProgressProperty("best cost REAL", [this] { return getBestCostProperty(); });
 }
 
 FactorRRT::~FactorRRT() {
@@ -72,6 +75,7 @@ void FactorRRT::clear() {
   for(const auto& state : goal_states_) {
     state.first->freeState(state.second);
   }
+  iterations_ = 0;
 }
 
 void FactorRRT::setup() {
@@ -83,8 +87,6 @@ bool FactorRRT::hasSolution_(const FactoredSpaceInformationPtr& factor) const {
   if(iterator == planner_status_per_factor_.end()) {
     return false;
   }
-  //OMPL_INFORM("Planner status for factor %s is %s", factor->getName().c_str(),
-  //planner_status_per_factor_.at(factor->getName()).asString().c_str());
   if( 
     planner_status_per_factor_.at(factor->getName())
     == base::PlannerStatus::StatusType::EXACT_SOLUTION) {
@@ -244,6 +246,14 @@ void FactorRRT::createProblemDefinition_(const FactoredSpaceInformationPtr& fact
   }
 }
 
+std::string FactorRRT::getIterationsProperty() const {
+  return std::to_string(iterations_);
+}
+
+std::string FactorRRT::getBestCostProperty() const {
+  return std::to_string(bestCost_);
+}
+
 ompl::base::PlannerStatus FactorRRT::solve(const ompl::base::PlannerTerminationCondition &ptc) {
     ////////////////////////////////////////////////////////////////////////////////
     const auto root = std::static_pointer_cast<FactoredSpaceInformation>(si_);
@@ -260,10 +270,10 @@ ompl::base::PlannerStatus FactorRRT::solve(const ompl::base::PlannerTerminationC
     }
 
     planner_status_ = base::PlannerStatus(base::PlannerStatus::StatusType::TIMEOUT);
-    size_t counter = 0;
     while (!ptc) {
+        iterations_++;
 
-        OMPL_DEBUG("Iteration %d", counter++);
+        OMPL_DEBUG("Iteration %d", iterations_);
 
         const auto& selectedFactor = selectFactor_();
 

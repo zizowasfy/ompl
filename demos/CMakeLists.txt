@@ -78,6 +78,15 @@ if (OMPL_BUILD_DEMOS)
         target_include_directories(demo_MultiLevelPlanarManipulator PUBLIC ${YAMLCPP_INCLUDE_DIRS})
         target_link_libraries(demo_MultiLevelPlanarManipulator ${YAMLCPP_LIBRARIES})
     endif()
+    if (yaml-cpp_FOUND)
+        add_ompl_demo(demo_FiberedMultiRobotManipulators
+            fibered/MultiRobotManipulators.cpp
+            PlanarManipulator/PlanarManipulator.cpp
+            PlanarManipulator/PolyWorld.cpp
+        )
+        target_include_directories(demo_FiberedMultiRobotManipulators PUBLIC ${YAMLCPP_INCLUDE_DIRS})
+        target_link_libraries(demo_FiberedMultiRobotManipulators ${YAMLCPP_LIBRARIES})
+    endif()
 
     if (OMPL_EXTENSION_TRIANGLE)
         add_ompl_demo(demo_TriangulationDemo TriangulationDemo.cpp)

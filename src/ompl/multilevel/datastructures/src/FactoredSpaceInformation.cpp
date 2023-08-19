@@ -210,6 +210,7 @@ bool FactoredSpaceInformation::addChild(FactoredSpaceInformationPtr child, Proje
   children_.push_back(child);
 
   if(projection->isFibered()) {
+    OMPL_INFORM("Create fiber space for projection from %s to %s", getName().c_str(), child->getName().c_str());
     std::static_pointer_cast<FiberedProjection>(projection)->makeFiberSpace();
   }
   return true;

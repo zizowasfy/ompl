@@ -37,6 +37,9 @@ namespace ompl
 
             const FactoredSpaceInformationPtr& getFactoredSpaceInformation() const;
 
+            std::string getIterationsProperty() const;
+            std::string getBestCostProperty() const;
+
           protected:
             void grow_(const FactoredSpaceInformationPtr& factor);
             bool hasSolution_(const FactoredSpaceInformationPtr& factor) const;
@@ -67,6 +70,9 @@ namespace ompl
             std::unordered_map<std::string, base::PlannerStatus> planner_status_per_factor_;
 
             base::PlannerStatus planner_status_;
+
+            unsigned int iterations_{0};
+            float bestCost_;
         };
 
     }
