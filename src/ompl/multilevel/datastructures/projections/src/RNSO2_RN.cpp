@@ -59,28 +59,28 @@ void Projection_RNSO2_RN::projectFiber(const ompl::base::State *xBundle, ompl::b
 
 void Projection_RNSO2_RN::project(const ompl::base::State *xBundle, ompl::base::State *xBase) const
 {
-    const auto *xBundle_R3 = xBundle->as<base::CompoundState>()->as<base::RealVectorStateSpace::StateType>(0);
-    auto *xBase_R3 = xBase->as<base::RealVectorStateSpace::StateType>();
+    const auto *xBundle_RN = xBundle->as<base::CompoundState>()->as<base::RealVectorStateSpace::StateType>(0);
+    auto *xBase_RN = xBase->as<base::RealVectorStateSpace::StateType>();
 
-    for (unsigned int k = 0; k < 3; k++)
+    for (unsigned int k = 0; k < getDimension() - 1; k++)
     {
-        xBase_R3->values[k] = xBundle_R3->values[k];
+        xBase_RN->values[k] = xBundle_RN->values[k];
     }
 }
 
 void Projection_RNSO2_RN::lift(const ompl::base::State *xBase, const ompl::base::State *xFiber,
                                ompl::base::State *xBundle) const
 {
-    auto *xBundle_R3 = xBundle->as<base::CompoundState>()->as<base::RealVectorStateSpace::StateType>(0);
+    auto *xBundle_RN = xBundle->as<base::CompoundState>()->as<base::RealVectorStateSpace::StateType>(0);
     auto *xBundle_SO2 = xBundle->as<base::CompoundState>()->as<base::SO2StateSpace::StateType>(1);
 
     const auto *xFiber_SO2 = xFiber->as<base::SO2StateSpace::StateType>();
 
-    const auto *xBase_R3 = xBase->as<base::RealVectorStateSpace::StateType>();
+    const auto *xBase_RN = xBase->as<base::RealVectorStateSpace::StateType>();
 
-    for (unsigned int k = 0; k < 3; k++)
+    for (unsigned int k = 0; k < getDimension() - 1; k++)
     {
-        xBundle_R3->values[k] = xBase_R3->values[k];
+        xBundle_RN->values[k] = xBase_RN->values[k];
     }
     xBundle_SO2->value = xFiber_SO2->value;
 }
@@ -91,7 +91,7 @@ ompl::base::StateSpacePtr Projection_RNSO2_RN::computeFiberSpace()
     unsigned int Y = getBaseDimension();
     if (Y != (N - 1))
     {
-        OMPL_ERROR("Assumed input is SO(2)xRN -> RN, but got %d -> %d dimensions.", N, Y);
+        OMPL_ERROR("Assumed input is RNxSO(2) -> RN, but got %d -> %d dimensions.", N, Y);
         throw "Invalid Dimensionality";
     }
     return std::make_shared<base::SO2StateSpace>();

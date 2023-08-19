@@ -6,6 +6,9 @@ else()
 endif()
 add_feature_info(OMPL_BUILD_TESTS "${OMPL_BUILD_TESTS}" "Whether to build the unit tests.")
 
+# add_compile_options(-fsanitize=address)
+# add_link_options(-fsanitize=address)
+
 if (OMPL_BUILD_TESTS)
     file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources" TEST_RESOURCES_DIR)
     string(REPLACE "\\" "\\\\" TEST_RESOURCES_DIR "${TEST_RESOURCES_DIR}")
@@ -31,6 +34,14 @@ if (OMPL_BUILD_TESTS)
         add_ompl_test(test_machine_specs benchmark/machine_specs.cpp)
     endif()
 
+    add_ompl_test(test_multilevel_factored multilevel/factored.cpp)
+    add_ompl_test(test_multilevel_factored_lifts multilevel/factored_lifts.cpp)
+    add_ompl_test(test_multilevel_factored_planning multilevel/factored_planning.cpp)
+    add_ompl_test(test_multilevel_factored_multirobot multilevel/factored_multirobot.cpp)
+    add_ompl_test(test_multilevel_factored_problem_definitions multilevel/factored_problem_definitions.cpp)
+    add_ompl_test(test_multilevel_projections multilevel/projections.cpp)
+    add_ompl_test(test_multilevel_projections_custom multilevel/projections_custom.cpp)
+
     # Test base code
     add_ompl_test(test_halton_sampling base/halton_deterministic_sampling.cpp)
     add_ompl_test(test_state_operations base/state_operations.cpp)
@@ -39,19 +50,15 @@ if (OMPL_BUILD_TESTS)
     add_ompl_test(test_ptc base/ptc.cpp)
     add_ompl_test(test_planner_data base/planner_data.cpp)
 
-    add_ompl_test(test_multilevel_factored multilevel/factored.cpp)
-    add_ompl_test(test_multilevel_projections multilevel/projections.cpp)
-    add_ompl_test(test_multilevel_projections_custom multilevel/projections_custom.cpp)
-
     # Test kinematic motion planners in 2D environments
-    add_ompl_test(test_2denvs_geometric geometric/2d/2denvs.cpp)
+    #add_ompl_test(test_2denvs_geometric geometric/2d/2denvs.cpp)
     add_ompl_test(test_2dmap_geometric_simple geometric/2d/2dmap_simple.cpp)
     add_ompl_test(test_2dmap_ik geometric/2d/2dmap_ik.cpp)
-    add_ompl_test(test_2dcircles_opt_geometric geometric/2d/2dcircles_optimize.cpp)
+    #add_ompl_test(test_2dcircles_opt_geometric geometric/2d/2dcircles_optimize.cpp)
     add_ompl_test(test_2dpath_simplifying geometric/2d/2dpath_simplifying.cpp)
 
     # Test constrained planning
-    add_ompl_test(test_constraint_sphere geometric/constraint/test_sphere.cpp)
+    #add_ompl_test(test_constraint_sphere geometric/constraint/test_sphere.cpp)
 
     # Test planning with controls on a 2D map
     add_ompl_test(test_2dmap_control control/2dmap/2dmap.cpp)

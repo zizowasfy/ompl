@@ -16,6 +16,8 @@ namespace ompl {
             /** \brief Constructor */
             RestrictionSampler(const FactoredSpaceInformationPtr& factor, const std::vector<FactoredPlannerPtr>& children_planner);
 
+            ~RestrictionSampler();
+
             void sampleUniform(base::State *state) override;
             void sampleUniformNear(base::State *state, const base::State *near, double distance) override;
             void sampleGaussian(base::State *state, const base::State *mean, double stdDev) override;

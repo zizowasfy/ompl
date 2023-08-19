@@ -51,6 +51,11 @@ void Projection_None::projectFiber(const ompl::base::State *, ompl::base::State 
     OMPL_WARN("Trying to project to fiber with non-projectable Bundle Space.");
 }
 
+std::vector<size_t> Projection_None::getInclusionIndices() const 
+{
+    return std::vector<size_t>{};
+}
+
 void Projection_None::project(const ompl::base::State *, ompl::base::State *) const
 {
     OMPL_WARN("Trying to project to base with non-projectable Bundle Space.");

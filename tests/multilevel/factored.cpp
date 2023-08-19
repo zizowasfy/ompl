@@ -1,40 +1,7 @@
 #define BOOST_TEST_MODULE "FactoredMotionPlanning"
 #include <boost/test/unit_test.hpp>
 
-#include <ompl/base/StateSpace.h>
-#include <ompl/base/spaces/RealVectorStateSpace.h>
-#include <ompl/base/terminationconditions/IterationTerminationCondition.h>
-
-#include <ompl/geometric/planners/rrt/RRTConnect.h>
-#include <ompl/geometric/planners/rrt/RRT.h>
-#include <ompl/multilevel/planners/qrrt/QRRT.h>
-#include <ompl/multilevel/planners/qmp/QMP.h>
-#include <ompl/multilevel/planners/factor/FactorRRT.h>
-#include <ompl/multilevel/datastructures/FactoredSpaceInformation.h>
-#include <ompl/multilevel/datastructures/projections/RN_RM.h>
-#include <ompl/util/Console.h>
-
-using namespace ompl::base;
-using namespace ompl::multilevel;
-
-const unsigned int kDefaultNumberIterations = 500;
-
-ompl::base::StateSpacePtr CreateCubeStateSpace(size_t dim) {
-  ompl::base::StateSpacePtr space(new RealVectorStateSpace(dim));
-  ompl::base::RealVectorBounds bounds_space(dim);
-  bounds_space.setLow(0);
-  bounds_space.setHigh(+1);
-  space->as<RealVectorStateSpace>()->setBounds(bounds_space);
-  return space;
-}
-
-ScopedState<> CreateState(const ompl::base::StateSpacePtr& space, const float value, const float step_size = 0.0f) {
-  ScopedState<> state(space);
-  for(size_t k = 0; k < space->getDimension(); k++) {
-    state[k] = value + k * step_size;
-  }
-  return state;
-}
+#include "factorization_common.h"
 
 BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_As_SpaceInformation)
 {
@@ -106,6 +73,41 @@ BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_DuplicateFactors)
     BOOST_CHECK(!A->addChild(A, projAB));
 }
 
+BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_InvalidProjections)
+{
+    ompl::base::StateSpacePtr space_A = CreateCubeStateSpace(4);
+    space_A->setName("SpaceA");
+    auto A = std::make_shared<FactoredSpaceInformation>(space_A);
+
+    ompl::base::StateSpacePtr space_B = CreateCubeStateSpace(2);
+    space_B->setName("SpaceB");
+    auto B = std::make_shared<FactoredSpaceInformation>(space_B);
+
+    ompl::base::StateSpacePtr space_C = CreateCubeStateSpace(2);
+    space_C->setName("SpaceC");
+    auto C = std::make_shared<FactoredSpaceInformation>(space_C);
+
+    ompl::multilevel::ProjectionPtr projAB = std::make_shared<Projection_RN_RM>(space_A, space_B, std::vector<size_t>({0,1}));
+    BOOST_CHECK(A->addChild(B, projAB));
+
+    ompl::multilevel::ProjectionPtr projAC_overlap = std::make_shared<Projection_RN_RM>(space_A, space_C, std::vector<size_t>({1,2}));
+    ompl::multilevel::ProjectionPtr projAC_single_overlap = std::make_shared<Projection_RN_RM>(space_A, space_C, std::vector<size_t>({1}));
+    ompl::multilevel::ProjectionPtr projAC_reverse_overlap = std::make_shared<Projection_RN_RM>(space_A, space_C, std::vector<size_t>({2,3,0}));
+
+    //Overlap between projections on index 1
+    BOOST_CHECK(!A->addChild(C, projAC_overlap));
+    BOOST_CHECK(!A->addChild(C, projAC_single_overlap));
+    BOOST_CHECK(!A->addChild(C, projAC_reverse_overlap));
+
+    //Projection has wrong preimage
+    ompl::multilevel::ProjectionPtr projAC = std::make_shared<Projection_RN_RM>(space_A, space_C);
+    BOOST_CHECK(!B->addChild(C, projAC)); //Projection from A->C, but parent class is B
+
+    //Projection has wrong image
+    ompl::multilevel::ProjectionPtr projAB_other = std::make_shared<Projection_RN_RM>(space_A, space_B, std::vector<size_t>({2,3}));
+    BOOST_CHECK(!A->addChild(C, projAB_other)); //Projection from A->B, but required child is C
+}
+
 BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_MultiLevelConnection)
 {
     //    A(6)
@@ -144,11 +146,11 @@ BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_MultiLevelConnection)
     space_F->setName("SpaceF");
     auto F = std::make_shared<FactoredSpaceInformation>(space_F);
 
-    ompl::multilevel::ProjectionPtr projAB = std::make_shared<Projection_RN_RM>(space_A, space_B);
-    ompl::multilevel::ProjectionPtr projBC = std::make_shared<Projection_RN_RM>(space_B, space_C);
-    ompl::multilevel::ProjectionPtr projCD = std::make_shared<Projection_RN_RM>(space_C, space_D);
-    ompl::multilevel::ProjectionPtr projDE = std::make_shared<Projection_RN_RM>(space_D, space_E);
-    ompl::multilevel::ProjectionPtr projEF = std::make_shared<Projection_RN_RM>(space_E, space_F);
+    auto projAB = std::make_shared<Projection_RN_RM>(space_A, space_B);
+    auto projBC = std::make_shared<Projection_RN_RM>(space_B, space_C);
+    auto projCD = std::make_shared<Projection_RN_RM>(space_C, space_D);
+    auto projDE = std::make_shared<Projection_RN_RM>(space_D, space_E);
+    auto projEF = std::make_shared<Projection_RN_RM>(space_E, space_F);
 
     A->addChild(B, projAB);
     B->addChild(C, projBC);
@@ -276,9 +278,9 @@ BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_FactorTree)
     space_D->setName("SpaceD");
     auto D = std::make_shared<FactoredSpaceInformation>(space_D);
 
-    ompl::multilevel::ProjectionPtr projAB = std::make_shared<Projection_RN_RM>(space_A, space_B);
-    ompl::multilevel::ProjectionPtr projBD = std::make_shared<Projection_RN_RM>(space_B, space_D);
-    ompl::multilevel::ProjectionPtr projAC = std::make_shared<Projection_RN_RM>(space_A, space_C, std::vector<size_t>({4,5}));
+    auto projAB = std::make_shared<Projection_RN_RM>(space_A, space_B);
+    auto projBD = std::make_shared<Projection_RN_RM>(space_B, space_D);
+    auto projAC = std::make_shared<Projection_RN_RM>(space_A, space_C, std::vector<size_t>({4,5}));
 
     A->addChild(B, projAB);
     A->addChild(C, projAC);
@@ -331,4 +333,3 @@ BOOST_AUTO_TEST_CASE(FactoredSpaceInformation_FactorTree)
       factor_path->print(std::cout);
     }
 }
-

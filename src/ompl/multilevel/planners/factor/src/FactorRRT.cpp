@@ -17,6 +17,9 @@ FactorRRT::FactorRRT(const FactoredSpaceInformationPtr &si) :
 }
 
 FactorRRT::~FactorRRT() {
+  for(const auto& planner : active_planners_) {
+    planner.second->clear();
+  }
 }
 
 const FactoredSpaceInformationPtr& FactorRRT::getFactoredSpaceInformation() const {
@@ -38,7 +41,7 @@ bool FactorRRT::allChildrenHaveSolutions_(const FactoredSpaceInformationPtr& fac
   const auto& children = factor->getChildren();
 
   //Debug
-  OMPL_INFORM("Factor %s has %d children.", factor->getName().c_str(), children.size());
+  OMPL_INFORM("Factor %s has %d %s.", factor->getName().c_str(), children.size(), (children.size() > 1 ? "children" : "child"));
   for(const auto& child : children) {
     OMPL_INFORM(" -- %s has %s.", child->getName().c_str(), (hasSolution_(child) ? "a solution" : "no solution"));
   }
@@ -52,7 +55,8 @@ bool FactorRRT::allChildrenHaveSolutions_(const FactoredSpaceInformationPtr& fac
 }
 
 void FactorRRT::setSeed(size_t seed) {
-  rng_.setSeed(seed);
+  rng_ = ompl::RNG(seed);
+  seed_ = seed;
 }
 
 const FactoredSpaceInformationPtr& FactorRRT::selectFactor_() {
@@ -62,6 +66,12 @@ const FactoredSpaceInformationPtr& FactorRRT::selectFactor_() {
 
 void FactorRRT::clear() {
   Planner::clear();
+  for(const auto& state : start_states_) {
+    state.first->freeState(state.second);
+  }
+  for(const auto& state : goal_states_) {
+    state.first->freeState(state.second);
+  }
 }
 
 void FactorRRT::setup() {
@@ -73,7 +83,19 @@ bool FactorRRT::hasSolution_(const FactoredSpaceInformationPtr& factor) const {
   if(iterator == planner_status_per_factor_.end()) {
     return false;
   }
-  return planner_status_per_factor_.at(factor->getName()); //using bool operator
+  //OMPL_INFORM("Planner status for factor %s is %s", factor->getName().c_str(),
+  //planner_status_per_factor_.at(factor->getName()).asString().c_str());
+  if( 
+    planner_status_per_factor_.at(factor->getName())
+    == base::PlannerStatus::StatusType::EXACT_SOLUTION) {
+    return true;
+  }
+  auto pdef_iterator = problem_definitions_per_factor_.find(factor->getName());
+  if(pdef_iterator == problem_definitions_per_factor_.end()) {
+    OMPL_ERROR("Could not get problem definition for factor %s", factor->getName().c_str());
+    return false;
+  }
+  return pdef_iterator->second->hasExactSolution();
 }
 
 bool FactorRRT::isActive_(const FactoredSpaceInformationPtr& factor) const {
@@ -93,7 +115,8 @@ bool FactorRRT::isSolved_(const FactoredSpaceInformationPtr& factor) const {
 }
 
 void FactorRRT::grow_(const FactoredSpaceInformationPtr& factor) {
-  OMPL_INFORM("Growing factor %s (%d active factors)", factor->getName().c_str(), active_factors_.size());
+  OMPL_INFORM("Growing factor %s (%d active factor%s)", factor->getName().c_str(), active_factors_.size(),
+      (active_factors_.size() > 1 ? "s" : ""));
 
   auto iterator = active_planners_.find(factor->getName());
   if(iterator == active_planners_.end()) {
@@ -139,15 +162,26 @@ void FactorRRT::createPlannerForFactor_(const FactoredSpaceInformationPtr& facto
     OMPL_ERROR("Could not get problem definition for factor %s", name.c_str());
     return;
   }
+  active_planners_[name]->setup();
   active_planners_[name]->setProblemDefinition(iterator->second);
+
+  if(seed_.has_value()) {
+    active_planners_[name]->setSeed(seed_.value());
+  }
 }
 
 void FactorRRT::setProblemDefinition(const base::ProblemDefinitionPtr &pdef) {
   Planner::setProblemDefinition(pdef);
 
-  const auto& root = getFactoredSpaceInformation();
+  // const auto root = getFactoredSpaceInformation();
+  const auto root = std::static_pointer_cast<FactoredSpaceInformation>(si_);
 
-  problem_definitions_per_factor_[root->getName()] = pdef;
+  if(root == nullptr) {
+    OMPL_ERROR("NULLPTR");
+  }
+  OMPL_INFORM("Set problem definition for factor %s", root->getName().c_str());
+
+  problem_definitions_per_factor_.insert({root->getName(), pdef});
   if(!root->hasChildren()) {
     return;
   }
@@ -200,6 +234,9 @@ void FactorRRT::createProblemDefinition_(const FactoredSpaceInformationPtr& fact
   pdef->addStartState(start);
   pdef->setGoalState(goal);
 
+  start_states_.push_back({factor, start});
+  goal_states_.push_back({factor, goal});
+
   problem_definitions_per_factor_[factor->getName()] = pdef;
 
   for(const auto& child : factor->getChildren()) {
@@ -209,7 +246,8 @@ void FactorRRT::createProblemDefinition_(const FactoredSpaceInformationPtr& fact
 
 ompl::base::PlannerStatus FactorRRT::solve(const ompl::base::PlannerTerminationCondition &ptc) {
     ////////////////////////////////////////////////////////////////////////////////
-    active_factors_ = getFactoredSpaceInformation()->getLeafFactors();
+    const auto root = std::static_pointer_cast<FactoredSpaceInformation>(si_);
+    active_factors_ = root->getLeafFactors();
     for(const auto& factor: active_factors_) {
       is_active_.insert({factor->getName(), true});
       is_solved_.insert({factor->getName(), false});
@@ -217,7 +255,7 @@ ompl::base::PlannerStatus FactorRRT::solve(const ompl::base::PlannerTerminationC
     OMPL_DEBUG("Solving FactoredSpaceInformation using %d active factors.", active_factors_.size());
     
     if(active_factors_.empty()) {
-      OMPL_ERROR("Could not find any leaf nodes for factor %s", getFactoredSpaceInformation()->getName().c_str());
+      OMPL_ERROR("Could not find any leaf nodes for factor %s", root->getName().c_str());
       return base::PlannerStatus(base::PlannerStatus::StatusType::ABORT);
     }
 
@@ -232,7 +270,6 @@ ompl::base::PlannerStatus FactorRRT::solve(const ompl::base::PlannerTerminationC
         grow_(selectedFactor);
 
         if(hasSolution_(selectedFactor)) {
-
           if(!isSolved_(selectedFactor)) {
             is_solved_[selectedFactor->getName()] = true;
             OMPL_DEBUG(" >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ");
@@ -258,6 +295,10 @@ ompl::base::PlannerStatus FactorRRT::solve(const ompl::base::PlannerTerminationC
             is_solved_.insert({parent->getName(), false});
           }
         }
+    }
+    if(pdef_->hasExactSolution()) {
+      OMPL_DEBUG("Found exact solution");
+      planner_status_ = base::PlannerStatus::StatusType::EXACT_SOLUTION;
     }
     return planner_status_;
 }

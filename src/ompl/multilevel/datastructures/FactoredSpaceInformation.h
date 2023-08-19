@@ -89,6 +89,7 @@ namespace ompl
             const std::vector<FactoredSpaceInformationPtr>& getChildren() const;
             const FactoredSpaceInformationPtr& getChild(const std::string& name) const;
             bool hasChildren() const;
+            bool childExists(const FactoredSpaceInformationPtr& factor) const;
 
             std::vector<FactoredSpaceInformationPtr> getLeafFactors();
             std::vector<FactoredSpaceInformationPtr> getAllFactors();
@@ -98,10 +99,13 @@ namespace ompl
              */
             void lift(const std::unordered_map<std::string, base::State*>& childStates_, base::State* state) const;
 
-            /** \brief project: Take state from this factor and map it to child
-             * states
-             */
-            //void project(const base::State* state, std::unordered_map<std::string, base::State*>& childStates) const;
+            bool isEquivalentTo(const FactoredSpaceInformationPtr& rhs) const;
+
+            bool projectionOverlapsWithExistingProjections(const FactoredSpaceInformationPtr& factor, const ProjectionPtr& projection) const;
+            bool projectionHasValidIndices(const FactoredSpaceInformationPtr& factor, const ProjectionPtr& projection) const;
+            bool projectionHasCorrectPreimage(const ProjectionPtr& projection) const;
+            bool projectionHasCorrectImage(const FactoredSpaceInformationPtr& child, const ProjectionPtr& projection) const;
+
         private:
             ProjectionPtr projection_to_parent_{nullptr};
 
@@ -109,6 +113,7 @@ namespace ompl
 
             std::vector<FactoredSpaceInformationPtr> children_;
         };
+
     }
 }
 #endif

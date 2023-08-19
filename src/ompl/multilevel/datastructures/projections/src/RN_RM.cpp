@@ -51,6 +51,29 @@ Projection_RN_RM::Projection_RN_RM(ompl::base::StateSpacePtr BundleSpace, ompl::
 {
 }
 
+std::vector<size_t> Projection_RN_RM::getInclusionIndices() const 
+{
+  auto index_selector = [](const auto& pair){return pair.first;};
+  std::vector<size_t> indices(map_projected_dimension_to_base_.size());
+  transform(map_projected_dimension_to_base_.begin(), map_projected_dimension_to_base_.end(), indices.begin(), index_selector);
+  return indices;
+}
+
+void Projection_RN_RM::inclusionMap(const ompl::base::State *xBase, ompl::base::State *xBundle) const 
+{
+  std::vector<size_t> indices = getInclusionIndices();
+
+  for(const auto& bundle_base_indices : map_projected_dimension_to_base_) 
+  {
+    const auto& indexBundle = bundle_base_indices.first;
+    const auto& indexBase = bundle_base_indices.second;
+
+    double* value = getBundle()->getValueAddressAtIndex(xBundle, indexBundle);
+    const double* baseValue = getBase()->getValueAddressAtIndex(xBase, indexBase);
+    *value = *baseValue;
+  }
+}
+
 Projection_RN_RM::Projection_RN_RM(ompl::base::StateSpacePtr BundleSpace, ompl::base::StateSpacePtr BaseSpace, std::vector<size_t> projected_dimensions)
   : BaseT(BundleSpace, BaseSpace), projected_dimensions_(projected_dimensions)
 {
@@ -75,7 +98,8 @@ Projection_RN_RM::Projection_RN_RM(ompl::base::StateSpacePtr BundleSpace, ompl::
     setType(PROJECTION_RN_RM);
 }
 
-bool Projection_RN_RM::isProjectedDimension(size_t input) const {
+bool Projection_RN_RM::isProjectedDimension(size_t input) const 
+{
     for(const auto& dim : projected_dimensions_) {
       if(dim == input) {
         return true;
@@ -124,7 +148,7 @@ void Projection_RN_RM::lift(const ompl::base::State *xBase, const ompl::base::St
     for(const auto& dim : non_projected_dimensions_)
     {
         const auto& fdim = map_non_projected_dimension_to_fiber_.at(dim);
-        xBundle_RN->values[dim] = xFiber_RJ->values[fdim];//k - getBaseDimension()];
+        xBundle_RN->values[dim] = xFiber_RJ->values[fdim];
     }
 }
 

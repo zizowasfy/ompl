@@ -62,6 +62,10 @@ namespace ompl
                               ompl::base::State *xBundle) const override;
 
             bool isProjectedDimension(size_t input) const;
+
+            std::vector<size_t> getInclusionIndices() const override;
+
+            void inclusionMap(const ompl::base::State *xBase, ompl::base::State *xBundle) const override;
         protected:
             ompl::base::StateSpacePtr computeFiberSpace() override;
 

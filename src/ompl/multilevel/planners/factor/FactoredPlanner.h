@@ -21,9 +21,10 @@ namespace ompl {
 
             ompl::base::PlannerStatus solve(const ompl::base::PlannerTerminationCondition &ptc) override;
 
-            const FactoredSpaceInformationPtr& getFactoredSpaceInformation() const;
-
             void sampleFromDatastructure(ompl::base::State* state);
+            void sampleFromPath(const std::vector<base::State *>& path_states, ompl::base::State* state);
+
+            void setSeed(size_t seed);
         };
     }
 }

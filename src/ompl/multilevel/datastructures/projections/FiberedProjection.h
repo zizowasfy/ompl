@@ -74,6 +74,14 @@ namespace ompl
             /* \brief Project bundle space onto fiber space */
             virtual void projectFiber(const ompl::base::State *xBundle, ompl::base::State *xFiber) const = 0;
 
+            /* \brief Compute all indices which contain values which are
+             * kept during projection */
+            virtual std::vector<size_t> getInclusionIndices() const;
+
+            /* \brief Map base state into bundle space, but keep non-inclusion
+             * indices constant (xBundle is only changed partially) */
+            virtual void inclusionMap(const ompl::base::State *xBase, ompl::base::State *xBundle) const;
+
             /* \brief Get explicit fiber space representation */
             virtual ompl::base::StateSpacePtr getFiberSpace() const;
 

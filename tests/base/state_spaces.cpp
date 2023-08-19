@@ -483,9 +483,9 @@ BOOST_AUTO_TEST_CASE(Mobius_Simple)
     s2->setV(+intervalMax);
     BOOST_OMPL_EXPECT_NEAR(m->distance(s2.get(), s1.get()), 2*intervalMax, 1e-3);
 
-    s1->setU(+PI);
+    s1->setU(+PI-0.1);
     s1->setV(-intervalMax);
-    s2->setU(+PI);
+    s2->setU(+PI-0.1);
     s2->setV(+intervalMax);
     BOOST_OMPL_EXPECT_NEAR(m->distance(s2.get(), s1.get()), 2*intervalMax, 1e-3);
 

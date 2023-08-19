@@ -8,7 +8,9 @@
 using namespace ompl::multilevel;
 
 ompl::multilevel::FactoredSpaceInformation::FactoredSpaceInformation(const ompl::base::StateSpacePtr& space) : 
-  ompl::base::SpaceInformation(space) {
+  ompl::base::SpaceInformation(space) 
+{
+  OMPL_INFORM("Create factor for space %s (dimensionality %d)", space->getName().c_str(), space->getDimension());
 }
 
 std::string FactoredSpaceInformation::getName() const {
@@ -63,20 +65,150 @@ std::vector<FactoredSpaceInformationPtr> FactoredSpaceInformation::getLeafFactor
   return leaf_factors;
 }
 
-bool FactoredSpaceInformation::addChild(FactoredSpaceInformationPtr factor, ProjectionPtr projection) {
-  if(getName() == factor->getName()) {
-    OMPL_ERROR("Cannot add the same factor as child for factor %s.", getName().c_str());
-    return false;
+bool FactoredSpaceInformation::isEquivalentTo(const FactoredSpaceInformationPtr& rhs) const 
+{
+    return getName() == rhs->getName();
+}
+
+bool FactoredSpaceInformation::projectionHasValidIndices(const FactoredSpaceInformationPtr& factor, const ProjectionPtr& projection) const 
+{
+  if(!projection->isFibered()) {
+    return true;
   }
-  factor->setProjectionToParent(projection);
-  factor->setParent(shared_from_this());
-  for(const auto& child : children_) {
-    if(child->getName() == factor->getName()) {
-      OMPL_ERROR("Child with name %s already exists.", child->getName().c_str());
+  const auto& fibered_projection = std::static_pointer_cast<FiberedProjection>(projection);
+  const std::vector<size_t> indices = fibered_projection->getInclusionIndices();
+  const auto N = projection->getDimension();
+  for(const auto& index : indices) 
+  {
+    if(index >= N) {
+      OMPL_ERROR("Index %d / %d is out of bounds for factor space %s.", index, N, factor->getName().c_str());
       return false;
     }
   }
-  children_.push_back(factor);
+  return true;
+}
+
+bool FactoredSpaceInformation::projectionOverlapsWithExistingProjections(const FactoredSpaceInformationPtr& factor, const ProjectionPtr& projection) const 
+{
+  if(!projection->isFibered()) {
+    return false;
+  }
+  const auto& fibered_projection = std::static_pointer_cast<FiberedProjection>(projection);
+  std::vector<size_t> indices = fibered_projection->getInclusionIndices();
+  std::sort(indices.begin(), indices.end());
+
+  auto hasIndexIntersection = [factor, indices](const auto& child) {
+        const auto& child_projection = child->getProjection();
+        if(!child_projection->isFibered()) 
+        {
+          return false;
+        }
+        const auto& fibered_child_projection = std::static_pointer_cast<FiberedProjection>(child_projection);
+        std::vector<size_t> child_indices = fibered_child_projection->getInclusionIndices();
+        std::sort(child_indices.begin(), child_indices.end());
+
+        std::vector<size_t> intersected_indices;
+        std::set_intersection(indices.begin(), indices.end(),
+                              child_indices.begin(), child_indices.end(),
+                              back_inserter(intersected_indices));
+
+        if(!intersected_indices.empty()) 
+        {
+          std::string error_msg = "Found overlap from factor " + factor->getName() 
+            + " to factor " + child->getName() + " at: \n";
+          for(const auto& index : intersected_indices) 
+          {
+            error_msg += " - Index " + std::to_string(index) + "\n";
+          }
+          error_msg += " Note: Indices from factor " + factor->getName() + " are ";
+          for(const auto& index : indices) 
+          {
+            error_msg += std::to_string(index) + " ";
+          }
+          error_msg += "\n Note: Indices from child " + child->getName() + " are ";
+          for(const auto& index : child_indices) 
+          {
+            error_msg += std::to_string(index) + " ";
+          }
+
+          OMPL_ERROR("%s", error_msg.c_str());
+          return true;
+        }
+        return false;//!intersected_indices.empty();
+      };
+
+  return std::any_of(children_.begin(), children_.end(), hasIndexIntersection);
+}
+
+bool FactoredSpaceInformation::childExists(const FactoredSpaceInformationPtr& factor) const {
+  return std::any_of(children_.begin(), children_.end(),
+      [factor](const auto& child) {
+        return child->isEquivalentTo(factor);
+      });
+}
+
+bool FactoredSpaceInformation::projectionHasCorrectImage(const FactoredSpaceInformationPtr& child, const ProjectionPtr& projection) const
+{
+    if(projection->getBaseDimension() != child->getStateDimension())
+    {
+      return false;
+    }
+
+    return projection->getBase()->getName() == child->getName();
+}
+
+bool FactoredSpaceInformation::projectionHasCorrectPreimage(const ProjectionPtr& projection) const
+{
+    if(projection->getDimension() != this->getStateDimension())
+    {
+      return false;
+    }
+
+    return projection->getBundle()->getName() == this->getName();
+}
+
+bool FactoredSpaceInformation::addChild(FactoredSpaceInformationPtr child, ProjectionPtr projection) {
+
+  if(this->isEquivalentTo(child)) 
+  {
+    OMPL_ERROR("Cannot add the same factor as child for factor %s.", getName().c_str());
+    return false;
+  }
+
+  if(childExists(child)) 
+  {
+      OMPL_ERROR("Child with name %s already exists. Please choose unique names for each StateSpace.", child->getName().c_str());
+      return false;
+  }
+
+  if(!projectionHasCorrectPreimage(projection))
+  {
+      OMPL_ERROR("Projection for child %s does not have correct preimage.", child->getName().c_str());
+      return false;
+  }
+
+  if(!projectionHasCorrectImage(child, projection))
+  {
+      OMPL_ERROR("Projection for child %s does not have correct image.", child->getName().c_str());
+      return false;
+  }
+
+  if(!projectionHasValidIndices(child, projection)) 
+  {
+      OMPL_ERROR("Projection for child %s has invalid indices.", child->getName().c_str());
+      return false;
+  }
+
+  if(projectionOverlapsWithExistingProjections(child, projection)) 
+  {
+      OMPL_ERROR("Projection for child %s overlaps with existing projection.", child->getName().c_str());
+      return false;
+  }
+
+  child->setProjectionToParent(projection);
+  child->setParent(shared_from_this());
+  children_.push_back(child);
+
   if(projection->isFibered()) {
     std::static_pointer_cast<FiberedProjection>(projection)->makeFiberSpace();
   }
@@ -98,20 +230,31 @@ const FactoredSpaceInformationPtr& FactoredSpaceInformation::getChild(const std:
         });
   if(iterator == children_.end()) {
     OMPL_ERROR("No child with name %s", name.c_str());
-    return nullptr;
+    throw "NoChildError";
   }
   return *iterator;
 }
 
 void FactoredSpaceInformation::lift(const std::unordered_map<std::string, base::State*>& childStates_, base::State* state) const {
-  OMPL_ERROR("Need two lifts: Either to implicitly sample the fiber space, or to stitch multiple projections together");
+  if(childStates_.size() <= 1) {
+    const auto& name = childStates_.begin()->first;
+    const auto& childState = childStates_.begin()->second;
+    const auto& child = getChild(name);
+    const auto& projection = child->getProjection();
+    projection->lift(childState, state);
+    return;
+  }
+
+  OMPL_INFORM("Lifting state");
   for(const auto& name_and_state: childStates_) {
     const auto& name = name_and_state.first;
-    const auto& factorState = name_and_state.second;
-    const auto& factor = getChild(name);
-    const auto& projection = factor->getProjection();
-    projection->lift(factorState, state);
+    const auto& childState = name_and_state.second;
+    const auto& child = getChild(name);
+    const auto& projection = std::static_pointer_cast<FiberedProjection>(child->getProjection());
+    child->printState(childState);
+    projection->inclusionMap(childState, state);
   }
+  printState(state);
 }
 
 void FactoredSpaceInformation::printSettings(std::ostream &out) const

@@ -9,9 +9,9 @@
 using namespace ompl::multilevel;
 
 RestrictionSampler::RestrictionSampler(const FactoredSpaceInformationPtr& factor, const std::vector<FactoredPlannerPtr>& children_planner) 
-  : factor_(factor), ompl::base::StateSampler(factor->getStateSpace().get()) 
+  : ompl::base::StateSampler(factor->getStateSpace().get()), factor_(factor)
 {
-    baseSampler_ = StateSampler::space_->allocDefaultStateSampler();
+    baseSampler_ = factor->allocStateSampler();
 
     if (!factor_->hasChildren())
     {
@@ -27,13 +27,26 @@ RestrictionSampler::RestrictionSampler(const FactoredSpaceInformationPtr& factor
       throw "MismatchChildrenPlannerError";
     }
 
+    size_t cumulative_dim = 0;
+    for(const auto& child : children) 
+    {
+      cumulative_dim += child->getStateDimension();
+    }
+
+    if (children.size() > 1 && factor->getStateDimension() != cumulative_dim)
+    {
+      OMPL_ERROR("Children dimensions sum to %d which does not match dimension %d.", cumulative_dim, factor->getStateDimension());
+      throw "MismatchChildrenPlannerDimensionsError";
+    }
+
     for(const auto& child : children) 
     {
       const auto& name = child->getName();
 
       auto iterator = std::find_if(children_planner.begin(), children_planner.end(),
          [name](const auto& planner) {
-          return planner->getFactoredSpaceInformation()->getName() == name;
+          auto child = std::static_pointer_cast<FactoredSpaceInformation>(planner->getSpaceInformation());
+          return child->getName() == name;
          }
        );
 
@@ -48,7 +61,25 @@ RestrictionSampler::RestrictionSampler(const FactoredSpaceInformationPtr& factor
       childNames_.push_back(name);
     }
 
-    OMPL_INFORM("Created restriction sampler for %d children.", childrenPlanner_.size());
+    OMPL_INFORM("Created restriction sampler for %d %s.", childrenPlanner_.size(),
+      (childrenPlanner_.size() > 1 ? "children" : "child"));
+}
+
+RestrictionSampler::~RestrictionSampler() 
+{
+    for(const auto& child : statesChild_) 
+    {
+        const auto& name = child.first;
+        auto state = child.second;
+        if(!state) {
+            continue;
+        }
+        if(childrenPlanner_.count(name) > 0) 
+        {
+            auto child_factor = std::static_pointer_cast<FactoredSpaceInformation>(childrenPlanner_.at(name)->getSpaceInformation());
+            child_factor->freeState(state);
+        }
+    }
 }
 
 void RestrictionSampler::sampleUniform(base::State *state) {
@@ -56,14 +87,14 @@ void RestrictionSampler::sampleUniform(base::State *state) {
     //Obtain samples from all children
     ////////////////////////////////////////////////////////////////////////////////
     for(const auto& name : childNames_) {
-        OMPL_INFORM("Sampling from %s", name.c_str());
         childrenPlanner_[name]->sampleFromDatastructure(statesChild_[name]);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
     //Lift samples to factor space
     ////////////////////////////////////////////////////////////////////////////////
-    return factor_->lift(statesChild_, state);
+    factor_->lift(statesChild_, state);
+    return;
 }
 
 void RestrictionSampler::sampleUniformNear(base::State *state, const base::State *near, double distance) {
