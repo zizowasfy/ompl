@@ -170,6 +170,7 @@ namespace ompl
 
             /** \brief State sampler */
             base::StateSamplerPtr sampler_;
+            base::ValidStateSamplerPtr valid_sampler_;
 
             /** \brief The start tree */
             TreeData tStart_;

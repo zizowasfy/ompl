@@ -33,18 +33,41 @@ endif()
 source_group("OMPL Source" FILES "${OMPL_SOURCE_CODE}")
 source_group("OMPL Headers" FILES "${OMPL_HEADERS}")
 
+include_directories(
+"/usr/local/include/GaussianMixtureModels"
+"/usr/local/include/GaussianUtils"
+)
+
+set(GMM_SAMPLER_SOURCES
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/build/_deps/guass_utils-src/src/src/GaussianDistribution.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/build/_deps/guass_utils-src/src/src/GaussianDistributionFactory.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/build/_deps/guass_utils-src/src/src/GaussianDistributionSampler.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/build/_deps/guass_utils-src/src/src/Utils.cpp
+
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/src/source/ExpectationMaximization.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/src/source/KMeans.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/src/source/EvaluateLogDensity.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/src/source/GaussianMixtureModel.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/src/source/GaussianMixtureModelSampler.cpp
+/home/zizo/haptics-ctrl_ws/src/Gaussian-Mixture-Model/src/source/GaussianMixtureModelFactory.cpp
+)
+# add_library(ompl GMM_SAMPLER_SOURCES)
+
 # build the library
 if(MSVC)
-    add_library(ompl STATIC ${OMPL_SOURCE_CODE})
+    add_library(ompl STATIC ${OMPL_SOURCE_CODE} ${GMM_SAMPLER_SOURCES})
 else(MSVC)
-    add_library(ompl SHARED ${OMPL_SOURCE_CODE})
+    add_library(ompl SHARED ${OMPL_SOURCE_CODE} ${GMM_SAMPLER_SOURCES})
 endif(MSVC)
 target_link_libraries(ompl
     ${OMPL_LINK_LIBRARIES}
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT})
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${rosbag_LIBRARIES}        # Added by Zizo
+    # ${GMM_SAMPLER_LIBRARIES} # Added by Zizo
+    )    
 
 if (OMPL_HAVE_SPOT)
     target_link_libraries(ompl ${SPOT_LIBRARIES})

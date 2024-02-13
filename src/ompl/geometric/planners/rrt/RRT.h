@@ -179,7 +179,7 @@ namespace ompl
 
             /** \brief State sampler */
             base::StateSamplerPtr sampler_;
-            base::ValidStateSamplerPtr sampler_rrt;
+            base::ValidStateSamplerPtr valid_sampler_;
 
             /** \brief A nearest-neighbors datastructure containing the tree of motions */
             std::shared_ptr<NearestNeighbors<Motion *>> nn_;

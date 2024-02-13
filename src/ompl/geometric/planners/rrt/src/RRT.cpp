@@ -41,6 +41,8 @@
 
 #include <ompl/base/spaces/SE3StateSpace.h>
 
+// #include "/home/zizo/haptics-ctrl_ws/src/data_handle/include/data_handle/GMMHandler.h" ///////////
+
 
 ompl::geometric::RRT::RRT(const base::SpaceInformationPtr &si, bool addIntermediateStates)
   : base::Planner(si, addIntermediateStates ? "RRTintermediate" : "RRT")
@@ -54,6 +56,9 @@ ompl::geometric::RRT::RRT(const base::SpaceInformationPtr &si, bool addIntermedi
                                 "0,1");
 
     addIntermediateStates_ = addIntermediateStates;
+
+
+    // getGMMfromBag(); ///////////
 }
 
 ompl::geometric::RRT::~RRT()
@@ -65,6 +70,7 @@ void ompl::geometric::RRT::clear()
 {
     Planner::clear();
     sampler_.reset();
+    valid_sampler_.reset();
     freeMemory();
     if (nn_)
         nn_->clear();
@@ -120,7 +126,8 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
     }
     
     if (!sampler_)
-        sampler_ = si_->allocStateSampler();
+        // sampler_ = si_->allocStateSampler();
+        valid_sampler_ = si_->allocValidStateSampler();
         
 
     OMPL_INFORM("%s: Starting planning with %u states already in datastructure", getName().c_str(), nn_->size());
@@ -141,7 +148,8 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
             }
         else{
             std::cout << "####### RRT: SAMPLE Uniform" << std::endl;
-            sampler_->sampleUniform(rstate);
+            // sampler_->sampleUniform(rstate);
+            valid_sampler_->sample(rstate);
             }
 
         /* find closest state in the tree */
@@ -152,10 +160,20 @@ ompl::base::PlannerStatus ompl::geometric::RRT::solve(const base::PlannerTermina
         double d = si_->distance(nmotion->state, rstate);
         if (d > maxDistance_)
         {
+            std::cout << "####### RRT: Interpolate" << std::endl;
             si_->getStateSpace()->interpolate(nmotion->state, rstate, maxDistance_ / d, xstate);
             dstate = xstate;
         }
-
+        
+        // std::vector<double> state_vec = {dstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[0],
+        //                                 dstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[1],
+        //                                 dstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[2],
+        //                                 dstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[3],
+        //                                 dstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[4],
+        //                                 dstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[5],
+        //                                 dstate->as<ompl::base::RealVectorStateSpace::StateType>()->values[6]};   ///////////
+        // saveSamples(state_vec);   ///////////
+        
         if (si_->checkMotion(nmotion->state, dstate))
         {
             if (addIntermediateStates_)

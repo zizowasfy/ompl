@@ -104,6 +104,7 @@ void ompl::geometric::RRTConnect::clear()
 {
     Planner::clear();
     sampler_.reset();
+    valid_sampler_.reset();
     freeMemory();
     if (tStart_)
         tStart_->clear();
@@ -125,8 +126,11 @@ ompl::geometric::RRTConnect::GrowState ompl::geometric::RRTConnect::growTree(Tre
     /* find state to add */
     base::State *dstate = rmotion->state;
     double d = si_->distance(nmotion->state, rmotion->state);
+    std::cout << "####### RRTConnect: Distance = " << d << "\n";
+    std::cout << "####### RRTConnect: maxDistance_ is " << maxDistance_ << "\n";
     if (d > maxDistance_)
     {
+        std::cout << "d > maxDistance_ " << maxDistance_ << " .. Interpolating" << "\n";
         si_->getStateSpace()->interpolate(nmotion->state, rmotion->state, maxDistance_ / d, tgi.xstate);
 
         /* Check if we have moved at all. Due to some stranger state spaces (e.g., the constrained state spaces),
@@ -226,8 +230,11 @@ ompl::base::PlannerStatus ompl::geometric::RRTConnect::solve(const base::Planner
         return base::PlannerStatus::INVALID_GOAL;
     }
 
+    std::cout << "####### RRTConnect: allocValidStateSampler()" << std::endl;    
     if (!sampler_)
-        sampler_ = si_->allocStateSampler();
+        // sampler_ = si_->allocStateSampler();
+        valid_sampler_ = si_->allocValidStateSampler();
+
 
     OMPL_INFORM("%s: Starting planning with %d states already in datastructure", getName().c_str(),
                 (int)(tStart_->size() + tGoal_->size()));
@@ -267,8 +274,10 @@ ompl::base::PlannerStatus ompl::geometric::RRTConnect::solve(const base::Planner
         }
 
         /* sample random state */
-        sampler_->sampleUniform(rstate);
-
+        // sampler_->sampleUniform(rstate);
+        std::cout << "####### RRTConnect: SAMPLE" << std::endl;
+        valid_sampler_->sample(rstate);
+        
         GrowState gs = growTree(tree, tgi, rmotion);
 
         if (gs != TRAPPED)
