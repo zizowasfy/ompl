@@ -39,7 +39,7 @@
 #include "ompl/tools/config/MagicConstants.h"
 
 // #include "/home/zizo/haptics-ctrl_ws/src/gmm_gmr/include/doRegression.h"
-#include "/home/zizo/haptics-ctrl_ws/src/data_handle/include/data_handle/GMMHandler.h"
+#include "/home/zizo/tpgmm_rrt_ws/src/batteryDis-LfD/data_handle/include/data_handle/GMMHandler.h"
 
 ompl::base::GMMValidStateSampler::GMMValidStateSampler(const SpaceInformation *si)
   : ValidStateSampler(si)
@@ -57,15 +57,16 @@ ompl::base::GMMValidStateSampler::GMMValidStateSampler(const SpaceInformation *s
                                      return getStdDev();
                                  });
     getGMMfromBag();
-    // nb_GMM_samples = 5000;        // uncomment to sample with GMM_sampler
-    // drawSamples(nb_GMM_samples);  // uncomment to sample with GMM_sampler
+    nb_GMM_samples = 5000;        // uncomment to sample with GMM_sampler
+    drawSamples(nb_GMM_samples);  // uncomment to sample with GMM_sampler
 }
 
 
 bool ompl::base::GMMValidStateSampler::sample(State *state)
 {
-    std::cout << "GMMValidStateSampler: sample" << std::endl;
-
+    std::cout << "GMMValidStateSampler: sampleee" << std::endl;
+    // std::cout << "HEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY" << std::endl;
+    
     // std::cout << "position.x: " << state->getX() << std::endl;
     
     // bool result = false;
@@ -89,8 +90,8 @@ bool ompl::base::GMMValidStateSampler::sample(State *state)
     // return result;
 
     ompl::RNG rnd_input;
-    std::vector<float> prestate = doRegression(rnd_input.uniformInt(0, GMM_sample_indx-1));   // uncomment to sample with GMR_sampler // The -1 to avoid out of range error
-    // std::vector<float> prestate= samplefromGMM(rnd_input.uniformInt(0, nb_GMM_samples-1)); // uncomment to sample with GMM_sampler
+    // std::vector<float> prestate = doRegression(rnd_input.uniformInt(0, GMM_sample_indx-1));   // uncomment to sample with GMR_sampler // The -1 to avoid out of range error
+    std::vector<float> prestate= samplefromGMM(rnd_input.uniformInt(0, nb_GMM_samples-1)); // uncomment to sample with GMM_sampler
 
 
     state->as<ompl::base::RealVectorStateSpace::StateType>()->values[0] = prestate[0];
@@ -108,6 +109,7 @@ bool ompl::base::GMMValidStateSampler::sample(State *state)
                                     state->as<ompl::base::RealVectorStateSpace::StateType>()->values[4],
                                     state->as<ompl::base::RealVectorStateSpace::StateType>()->values[5],
                                     state->as<ompl::base::RealVectorStateSpace::StateType>()->values[6]};
+    std::cout << "savingSamples(state_vec)" << std::endl;
     saveSamples(state_vec);
     
     std::cout << state_vec[0] << std::endl;

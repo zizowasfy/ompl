@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/zizo/omplapp/ompl/tests/datastructures/adjacency_list.cpp
+boost/test/unit_test.hpp
+-
+iostream
+-
+ompl/datastructures/AdjacencyList.h
+/home/zizo/omplapp/ompl/tests/datastructures/ompl/datastructures/AdjacencyList.h
+
+ompl/src/ompl/datastructures/AdjacencyList.h
+vector
+-
+boost/thread/mutex.hpp
+-
+
